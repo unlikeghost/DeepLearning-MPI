@@ -44,7 +44,7 @@ WORKDIR /workspace
 
 # Copy all project files into the container
 COPY . /workspace/
-
+COPY data /workspace/data
 
 # Make the `run.sh` script executable
 RUN chmod +x /workspace/run.sh
