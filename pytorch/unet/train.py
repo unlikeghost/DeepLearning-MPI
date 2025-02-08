@@ -69,7 +69,7 @@ def build_model(local_rank: int, resume: bool, model_filepath: str) -> nn.Module
 
     # # Wrap the model in DistributedDataParallel
     ddp_model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
-    if resume:
+    if resume == True:
         map_location = {f"cuda:{local_rank}": f"cuda:{local_rank}"}
         ddp_model.load_state_dict(torch.load(model_filepath, map_location=map_location))
     return ddp_model
@@ -213,7 +213,7 @@ def initialize_processes(
         model = build_model(local_rank, resume, model_filepath)
         device = torch.device(f"cuda:{local_rank}")
         print('Model built. Starting training.')
-        
+
         train_model(model, train_loader, test_loader, device, num_epochs, model_filepath, local_rank, learning_rate)
 
     except Exception as e:
