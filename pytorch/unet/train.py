@@ -207,13 +207,17 @@ def initialize_processes(
             batch_size=batch_size,
             local_rank=local_rank,
         )
+        print('Data loaders built.')
 
         # Build model
         model = build_model(local_rank, resume, model_filepath)
         device = torch.device(f"cuda:{local_rank}")
-
         print('Model built. Starting training.')
+        
         train_model(model, train_loader, test_loader, device, num_epochs, model_filepath, local_rank, learning_rate)
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
     finally:
         dist.destroy_process_group()
