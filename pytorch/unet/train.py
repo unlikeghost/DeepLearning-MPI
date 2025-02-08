@@ -212,6 +212,7 @@ def initialize_processes(
         model = build_model(local_rank, resume, model_filepath)
         device = torch.device(f"cuda:{local_rank}")
 
+        print('Model built. Starting training.')
         train_model(model, train_loader, test_loader, device, num_epochs, model_filepath, local_rank, learning_rate)
 
     finally:
