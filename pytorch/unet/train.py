@@ -17,21 +17,18 @@ from model import UNet
 from data_loading import CarvanaDataset
 
 
-def get_environment_variables() -> Tuple[int, int, int]:
-    """Retrieve distributed environment variables."""
-    try:
-        local_rank = int(os.environ['LOCAL_RANK'])
-        world_size = int(os.environ['WORLD_SIZE'])
-        world_rank = int(os.environ['RANK'])
-        return local_rank, world_size, world_rank
-    except KeyError as e:
-        raise RuntimeError("Missing required environment variables for distributed training") from e
+try:
+    LOCAL_RANK = int(os.environ['LOCAL_RANK'])
+    WORLD_SIZE = int(os.environ['WORLD_SIZE'])
+    WORLD_RANK = int(os.environ['RANK'])
+except KeyError as e:
+    raise RuntimeError("Missing required environment variables for distributed training") from e
 
 
 def get_system_information() -> str:
     """Retrieve system and environment setup details."""
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
-    local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    world_size = WORLD_SIZE
+    local_rank = LOCAL_RANK
     return f"World size: {world_size}, Local rank: {local_rank}, GPU: {torch.cuda.get_device_name(local_rank)}"
 
 
@@ -60,27 +57,26 @@ def log_to_file(filepath: str, message: str) -> None:
         f.write(message + "\n")
 
 
-def build_model(local_rank: int, resume: bool, model_filepath: str) -> nn.Module:
+def build_model(resume: bool, model_filepath: str) -> nn.Module:
     """Build and initialize the model for training."""
-    device = torch.device(f"cuda:{local_rank}")
+    device = torch.device(f"cuda:{LOCAL_RANK}")
 
     model = UNet(out_classes=1)
     model.to(device)
 
     # # Wrap the model in DistributedDataParallel
     ddp_model = nn.parallel.DistributedDataParallel(
-        model, device_ids=[local_rank], output_device=local_rank
+        model, device_ids=[LOCAL_RANK], output_device=LOCAL_RANK
     )
 
     if resume == True:
-        map_location = {f"cuda:0": f"cuda:{local_rank}"}
+        map_location = {f"cuda:0": f"cuda:{LOCAL_RANK}"}
         ddp_model.load_state_dict(torch.load(model_filepath, map_location=map_location))
     return ddp_model
 
 
 def build_data_loaders(
         batch_size: int,
-        local_rank: int,
 ) -> Tuple[DataLoader, DataLoader]:
     """Set up data loaders for training and testing."""
 
@@ -97,7 +93,7 @@ def build_data_loaders(
         pin_memory=True,
     )
 
-    train_sampler = DistributedSampler(train_dataset, rank=local_rank)
+    train_sampler = DistributedSampler(train_dataset)
 
     train_loader = DataLoader(train_dataset, **loader_args, sampler=train_sampler)
     test_loader = DataLoader(test_dataset, **loader_args, shuffle=False)
@@ -137,12 +133,11 @@ def train_model(
         device: torch.device,
         num_epochs: int,
         model_filepath: str,
-        local_rank: int,
         learning_rate: float = 0.1,) -> None:
     """Train the model."""
 
     # Unique log file for this training session
-    if local_rank == 0:
+    if LOCAL_RANK == 0:
         print(f"Logging training progress to: {log_file}")
         log_to_file(log_file, f"Started training at {datetime.now()}")
 
@@ -180,11 +175,11 @@ def train_model(
         end_time = time.time()
         epoch_duration = end_time - start_time
         epoch_log_message = f"Epoch {epoch + 1} | Loss: {epoch_loss:.4f} | Duration: {epoch_duration:.2f}s"
-        if local_rank == 0:
+        if LOCAL_RANK == 0:
             log_to_file(log_file, epoch_log_message)
 
         if epoch % 10 == 0:
-            if local_rank == 0:
+            if LOCAL_RANK == 0:
                 accuracy = evaluate_model(model, device, test_loader)
                 torch.save(model.state_dict(), model_filepath)
                 print("-" * 75)
@@ -193,31 +188,28 @@ def train_model(
 
 def initialize_processes(
         backend: str,
-        local_rank: int,
-        world_size: int,
         batch_size: int,
         num_epochs: int,
         model_filepath: str,
         learning_rate: float,
         resume: bool = False):
     """Initialize distributed processes and start training."""
-    dist.init_process_group(backend, rank=local_rank, world_size=world_size)
+    dist.init_process_group(backend)
 
     try:
 
         # Build data loaders
         train_loader, test_loader = build_data_loaders(
             batch_size=batch_size,
-            local_rank=local_rank,
         )
         print('Data loaders built.')
 
         # Build model
-        model = build_model(local_rank, resume, model_filepath)
-        device = torch.device(f"cuda:{local_rank}")
+        model = build_model(resume, model_filepath)
+        device = torch.device(f"cuda:{LOCAL_RANK}")
         print('Model built. Starting training.')
 
-        train_model(model, train_loader, test_loader, device, num_epochs, model_filepath, local_rank, learning_rate)
+        train_model(model, train_loader, test_loader, device, num_epochs, model_filepath)
 
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -230,12 +222,8 @@ def main(p_args: argparse.Namespace) -> None:
     model_filepath = str(os.path.join(p_args.model_dir, p_args.model_filename))
     set_random_seeds(p_args.random_seed)
 
-    local_rank, world_size, _ = get_environment_variables()
-
     initialize_processes(
         backend="nccl",
-        local_rank=local_rank,
-        world_size=world_size,
         batch_size=p_args.batch_size,
         num_epochs=p_args.num_epochs,
         model_filepath=model_filepath,
