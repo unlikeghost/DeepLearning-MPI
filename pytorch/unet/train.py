@@ -90,7 +90,7 @@ def build_data_loaders(
 
     loader_args = dict(
         batch_size=batch_size,
-        num_workers=os.cpu_count(),
+        num_workers=int(os.cpu_count() // 2),
         pin_memory=True,
     )
 
