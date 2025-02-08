@@ -38,7 +38,7 @@ def get_system_information() -> str:
 def set_random_seeds(seed: int) -> None:
     """Set random seeds for reproducibility."""
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False  # Deterministic mode may not be optimal for performance
+    torch.backends.cudnn.benchmark = True  # Deterministic mode may not be optimal for performance
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -68,9 +68,12 @@ def build_model(local_rank: int, resume: bool, model_filepath: str) -> nn.Module
     model.to(device)
 
     # # Wrap the model in DistributedDataParallel
-    ddp_model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
+    ddp_model = nn.parallel.DistributedDataParallel(
+        model, device_ids=[local_rank], output_device=local_rank
+    )
+
     if resume == True:
-        map_location = {f"cuda:{local_rank}": f"cuda:{local_rank}"}
+        map_location = {f"cuda:0": f"cuda:{local_rank}"}
         ddp_model.load_state_dict(torch.load(model_filepath, map_location=map_location))
     return ddp_model
 
