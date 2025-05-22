@@ -120,9 +120,12 @@ class BasicDataset(Dataset):
         img = self.preprocess(self.mask_values, img, self.scale, is_mask=False)
         mask = self.preprocess(self.mask_values, mask, self.scale, is_mask=True)
 
+        # Para segmentación binaria, convertir mask a valores 0 y 1
+        mask_binary = (mask > 0).astype(np.float32)
+
         return {
             'image': torch.as_tensor(img.copy()).float().contiguous(),
-            'mask': torch.as_tensor(mask.copy()).long().contiguous()
+            'mask': torch.as_tensor(mask_binary.copy()).float().contiguous()
         }
 
 
@@ -175,3 +178,4 @@ if __name__ == '__main__':
         plt.show()
 
         break
+    

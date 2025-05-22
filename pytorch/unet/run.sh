@@ -56,8 +56,8 @@ NUM_EPOCHS=${NUM_EPOCHS:-100}
 read -p "Enter batch size per process (batch_size) [default: 128]: " BATCH_SIZE
 BATCH_SIZE=${BATCH_SIZE:-128}
 
-read -p "Enter learning rate (learning_rate) [default: 0.1]: " LEARNING_RATE
-LEARNING_RATE=${LEARNING_RATE:-0.1}
+read -p "Enter learning rate (learning_rate) [default: 0.001]: " LEARNING_RATE
+LEARNING_RATE=${LEARNING_RATE:-0.001}
 
 read -p "Enter random seed (random_seed) [default: 42]: " RANDOM_SEED
 RANDOM_SEED=${RANDOM_SEED:-42}
